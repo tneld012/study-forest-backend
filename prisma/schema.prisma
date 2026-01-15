@@ -1,0 +1,292 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//
+// ENUMS
+//
+
+enum StudyMemberRole {
+  OWNER
+  MEMBER
+}
+
+enum FocusSessionStatus {
+  RUNNING
+  COMPLETED
+  STOPPED
+}
+
+enum StudyBackgroundKey {
+  green
+  yellow
+  blue
+  pink
+  workspace_1
+  workspace_2
+  pattern
+  leaf
+}
+
+//
+// MODELS
+//
+
+model User {
+  id           String @id @default(uuid()) @db.Uuid
+  email        String @unique @db.VarChar(255)
+  nickname     String @db.VarChar(50)
+  passwordHash String @map("password_hash") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  ownedStudies        Study[]              @relation("StudyOwner")
+  studyMembers        StudyMember[]
+  habitChecks         HabitCheck[]
+  focusSessions       FocusSession[]
+  pointLogs           PointLog[]
+  posts               Post[]
+  postLikes           PostLike[]
+  postComments        PostComment[]
+  studyComments       StudyComment[]
+  studyEmojiReactions StudyEmojiReaction[]
+
+  @@map("users")
+}
+
+model Study {
+  id            String             @id @default(uuid()) @db.Uuid
+  ownerId       String             @map("owner_id") @db.Uuid
+  name          String             @db.VarChar(100)
+  introduce     String             @db.Text
+  backgroundKey StudyBackgroundKey @map("background_key")
+  isPublic      Boolean            @default(true) @map("is_public")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  owner               User                 @relation("StudyOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  studyMembers        StudyMember[]
+  habits              Habit[]
+  habitChecks         HabitCheck[]
+  focusSessions       FocusSession[]
+  pointLogs           PointLog[]
+  studyEmojiReactions StudyEmojiReaction[]
+  studyComments       StudyComment[]
+
+  @@index([ownerId], map: "idx_studies_owner_id")
+  @@map("studies")
+}
+
+model StudyMember {
+  id       String          @id @default(uuid()) @db.Uuid
+  studyId  String          @map("study_id") @db.Uuid
+  userId   String          @map("user_id") @db.Uuid
+  role     StudyMemberRole
+  joinedAt DateTime        @default(now()) @map("joined_at")
+
+  // Relations
+  study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([studyId, userId], map: "uq_study_members_study_id_user_id")
+  @@index([userId], map: "idx_study_members_user_id")
+  @@index([studyId], map: "idx_study_members_study_id")
+  @@map("study_members")
+}
+
+model Habit {
+  id      String @id @default(uuid()) @db.Uuid
+  studyId String @map("study_id") @db.Uuid
+  name    String @db.VarChar(100)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  endedAt   DateTime? @map("ended_at")
+
+  // Relations
+  study       Study        @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  habitChecks HabitCheck[]
+
+  @@index([studyId], map: "idx_habits_study_id")
+  @@map("habits")
+}
+
+model HabitCheck {
+  id      String @id @default(uuid()) @db.Uuid
+  habitId String @map("habit_id") @db.Uuid
+  studyId String @map("study_id") @db.Uuid
+  userId  String @map("user_id") @db.Uuid
+
+  date   DateTime @db.Date
+  isDone Boolean  @default(true) @map("is_done")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([habitId, userId, date], map: "uq_habit_checks_habit_id_user_id_date")
+  @@index([studyId, date], map: "idx_habit_checks_study_id_date")
+  @@index([userId, date], map: "idx_habit_checks_user_id_date")
+  @@map("habit_checks")
+}
+
+model FocusSession {
+  id             String             @id @default(uuid()) @db.Uuid
+  studyId        String             @map("study_id") @db.Uuid
+  userId         String             @map("user_id") @db.Uuid
+  targetSeconds  Int                @map("target_seconds")
+  startedAt      DateTime           @map("started_at")
+  endedAt        DateTime?          @map("ended_at")
+  elapsedSeconds Int?               @map("elapsed_seconds")
+  status         FocusSessionStatus
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([studyId, startedAt], map: "idx_focus_sessions_study_id_started_at")
+  @@index([userId, startedAt], map: "idx_focus_sessions_user_id_started_at")
+  @@map("focus_sessions")
+}
+
+model PointLog {
+  id      String @id @default(uuid()) @db.Uuid
+  studyId String @map("study_id") @db.Uuid
+  userId  String @map("user_id") @db.Uuid
+
+  delta Int
+
+  // 확장성 컬럼들
+  referenceType String @map("reference_type") @db.VarChar(50) // 예: "FOCUS_SESSION"
+  referenceId   String @map("reference_id") @db.Uuid // 예: focus_sessions.id
+  reason        String @db.VarChar(100) // 예: "FOCUS_COMPLETED", "FOCUS_BONUS"
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([studyId, createdAt], map: "idx_point_logs_study_id_created_at")
+  @@index([userId, createdAt], map: "idx_point_logs_user_id_created_at")
+  @@map("point_logs")
+}
+
+model EmojiCatalog {
+  id               String @id @default(uuid()) @db.Uuid
+  emojiUnifiedCode String @map("emoji_unified_code") @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  studyEmojiReactions StudyEmojiReaction[]
+
+  @@unique([emojiUnifiedCode], map: "uq_emoji_catalog_emoji_unified_code")
+  @@map("emoji_catalog")
+}
+
+model StudyEmojiReaction {
+  id      String @id @default(uuid()) @db.Uuid
+  studyId String @map("study_id") @db.Uuid
+  userId  String @map("user_id") @db.Uuid
+  emojiId String @map("emoji_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  study Study        @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji EmojiCatalog @relation(fields: [emojiId], references: [id], onDelete: Cascade)
+
+  // 한 유저가 같은 이모지를 여러 번 누를 수 있어야 하므로 UNIQUE 없음!
+  @@index([studyId, createdAt], map: "idx_study_emoji_reactions_study_id_created_at")
+  @@index([emojiId], map: "idx_study_emoji_reactions_emoji_id")
+  @@map("study_emoji_reactions")
+}
+
+model Post {
+  id       String @id @default(uuid()) @db.Uuid
+  authorId String @map("author_id") @db.Uuid
+
+  title   String @db.VarChar(100)
+  content String @db.Text
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postLikes    PostLike[]
+  postComments PostComment[]
+
+  @@index([authorId, createdAt], map: "idx_posts_author_id_created_at")
+  @@map("posts")
+}
+
+model PostLike {
+  id     String @id @default(uuid()) @db.Uuid
+  postId String @map("post_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId], map: "uq_post_likes_post_id_user_id")
+  @@index([userId], map: "idx_post_likes_user_id")
+  @@map("post_likes")
+}
+
+model PostComment {
+  id       String @id @default(uuid()) @db.Uuid
+  postId   String @map("post_id") @db.Uuid
+  authorId String @map("author_id") @db.Uuid
+
+  content String @db.Text
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt], map: "idx_post_comments_post_id_created_at")
+  @@map("post_comments")
+}
+
+model StudyComment {
+  id       String @id @default(uuid()) @db.Uuid
+  studyId  String @map("study_id") @db.Uuid
+  authorId String @map("author_id") @db.Uuid
+
+  content String @db.Text
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  study  Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([studyId, createdAt], map: "idx_study_comments_study_id_created_at")
+  @@map("study_comments")
+}

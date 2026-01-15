@@ -14,3 +14,5 @@ yarn-error.log*
 
 # build output
 dist/
+
+/src/generated/prisma
