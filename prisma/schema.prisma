@@ -1,3 +1,5 @@
+// 컬럼명은 DB에서 snake_case로 저장! (@map 사용)
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,21 +9,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-//
-// ENUMS
-//
+// -----------------------------------------------------------------------------
+// ENUMS (상태값 정의)
+// -----------------------------------------------------------------------------
 
+/// 스터디 멤버 권한 (방장 or 멤버)
 enum StudyMemberRole {
   OWNER
   MEMBER
 }
 
+/// 집중 세션 진행 상태 (진행중 or 목표 달성 완료 or 중간에 중단함)
 enum FocusSessionStatus {
   RUNNING
   COMPLETED
   STOPPED
 }
 
+/// 스터디 카드 배경 이미지 종류
 enum StudyBackgroundKey {
   green
   yellow
@@ -33,10 +38,11 @@ enum StudyBackgroundKey {
   leaf
 }
 
-//
-// MODELS
-//
+// -----------------------------------------------------------------------------
+// 📋 MODELS (테이블 정의)
+// -----------------------------------------------------------------------------
 
+/// 📋 사용자 정보 테이블
 model User {
   id           String @id @default(uuid()) @db.Uuid
   email        String @unique @db.VarChar(255)
@@ -46,8 +52,8 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Relations
-  ownedStudies        Study[]              @relation("StudyOwner")
+  // 관계
+  ownedStudies        Study[]               @relation("StudyOwner")
   studyMembers        StudyMember[]
   habitChecks         HabitCheck[]
   focusSessions       FocusSession[]
@@ -61,18 +67,19 @@ model User {
   @@map("users")
 }
 
+/// 📋 스터디 테이블
 model Study {
-  id            String             @id @default(uuid()) @db.Uuid
-  ownerId       String             @map("owner_id") @db.Uuid
-  name          String             @db.VarChar(100)
-  introduce     String             @db.Text
+  id            String            @id @default(uuid()) @db.Uuid
+  ownerId       String            @map("owner_id") @db.Uuid
+  name          String            @db.VarChar(100)
+  introduce     String            @db.Text
   backgroundKey StudyBackgroundKey @map("background_key")
   isPublic      Boolean            @default(true) @map("is_public")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Relations
+  // 관계
   owner               User                 @relation("StudyOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   studyMembers        StudyMember[]
   habits              Habit[]
@@ -86,6 +93,7 @@ model Study {
   @@map("studies")
 }
 
+/// 📋 스터디 멤버 가입 내역 테이블
 model StudyMember {
   id       String          @id @default(uuid()) @db.Uuid
   studyId  String          @map("study_id") @db.Uuid
@@ -93,7 +101,7 @@ model StudyMember {
   role     StudyMemberRole
   joinedAt DateTime        @default(now()) @map("joined_at")
 
-  // Relations
+  // 관계
   study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -103,6 +111,7 @@ model StudyMember {
   @@map("study_members")
 }
 
+/// 📋 스터디별 습관 항목 테이블
 model Habit {
   id      String @id @default(uuid()) @db.Uuid
   studyId String @map("study_id") @db.Uuid
@@ -111,7 +120,7 @@ model Habit {
   createdAt DateTime  @default(now()) @map("created_at")
   endedAt   DateTime? @map("ended_at")
 
-  // Relations
+  // 관계
   study       Study        @relation(fields: [studyId], references: [id], onDelete: Cascade)
   habitChecks HabitCheck[]
 
@@ -119,6 +128,7 @@ model Habit {
   @@map("habits")
 }
 
+/// 📋 습관 달성 체크 테이블
 model HabitCheck {
   id      String @id @default(uuid()) @db.Uuid
   habitId String @map("habit_id") @db.Uuid
@@ -130,7 +140,7 @@ model HabitCheck {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Relations
+  // 관계
   habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
   study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -141,6 +151,7 @@ model HabitCheck {
   @@map("habit_checks")
 }
 
+/// 📋 집중 시간 기록 테이블
 model FocusSession {
   id             String             @id @default(uuid()) @db.Uuid
   studyId        String             @map("study_id") @db.Uuid
@@ -153,7 +164,7 @@ model FocusSession {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Relations
+  // 관계
   study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -162,6 +173,7 @@ model FocusSession {
   @@map("focus_sessions")
 }
 
+/// 📋 포인트 기록 테이블
 model PointLog {
   id      String @id @default(uuid()) @db.Uuid
   studyId String @map("study_id") @db.Uuid
@@ -169,14 +181,17 @@ model PointLog {
 
   delta Int
 
-  // 확장성 컬럼들
-  referenceType String @map("reference_type") @db.VarChar(50) // 예: "FOCUS_SESSION"
-  referenceId   String @map("reference_id") @db.Uuid // 예: focus_sessions.id
-  reason        String @db.VarChar(100) // 예: "FOCUS_COMPLETED", "FOCUS_BONUS"
+  // 확장성을 이유로 존재
+  /// 발생 근거 테이블 타입 (예: FOCUS_SESSION)
+  referenceType String @map("reference_type") @db.VarChar(50)
+  /// 발생 근거 테이블의 ID
+  referenceId   String @map("reference_id") @db.Uuid
+  /// 포인트 발생 사유 (예: 집중 완료 보너스) 
+  reason        String @db.VarChar(100)
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Relations
+  // 관계
   study Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -185,19 +200,21 @@ model PointLog {
   @@map("point_logs")
 }
 
+/// 📋 이모지 라이브러리 테이블
 model EmojiCatalog {
   id               String @id @default(uuid()) @db.Uuid
   emojiUnifiedCode String @map("emoji_unified_code") @db.VarChar(50)
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Relations
+  // 관계
   studyEmojiReactions StudyEmojiReaction[]
 
   @@unique([emojiUnifiedCode], map: "uq_emoji_catalog_emoji_unified_code")
   @@map("emoji_catalog")
 }
 
+/// 📋 스터디 이모지 반응 테이블
 model StudyEmojiReaction {
   id      String @id @default(uuid()) @db.Uuid
   studyId String @map("study_id") @db.Uuid
@@ -206,17 +223,17 @@ model StudyEmojiReaction {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Relations
+  // 관계
   study Study        @relation(fields: [studyId], references: [id], onDelete: Cascade)
   user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   emoji EmojiCatalog @relation(fields: [emojiId], references: [id], onDelete: Cascade)
 
-  // 한 유저가 같은 이모지를 여러 번 누를 수 있어야 하므로 UNIQUE 없음!
   @@index([studyId, createdAt], map: "idx_study_emoji_reactions_study_id_created_at")
   @@index([emojiId], map: "idx_study_emoji_reactions_emoji_id")
   @@map("study_emoji_reactions")
 }
 
+/// 📋 커뮤니티 게시글 테이블
 model Post {
   id       String @id @default(uuid()) @db.Uuid
   authorId String @map("author_id") @db.Uuid
@@ -228,7 +245,7 @@ model Post {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
+  // 관계
   author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   postLikes    PostLike[]
   postComments PostComment[]
@@ -237,6 +254,7 @@ model Post {
   @@map("posts")
 }
 
+/// 📋 게시글 좋아요 테이블
 model PostLike {
   id     String @id @default(uuid()) @db.Uuid
   postId String @map("post_id") @db.Uuid
@@ -244,7 +262,7 @@ model PostLike {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Relations
+  // 관계
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -253,6 +271,7 @@ model PostLike {
   @@map("post_likes")
 }
 
+/// 📋 게시글 댓글 테이블
 model PostComment {
   id       String @id @default(uuid()) @db.Uuid
   postId   String @map("post_id") @db.Uuid
@@ -264,7 +283,7 @@ model PostComment {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
+  // 관계
   post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
@@ -272,6 +291,7 @@ model PostComment {
   @@map("post_comments")
 }
 
+/// 📋 스터디 댓글 테이블
 model StudyComment {
   id       String @id @default(uuid()) @db.Uuid
   studyId  String @map("study_id") @db.Uuid
@@ -283,7 +303,7 @@ model StudyComment {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
+  // 관계
   study  Study @relation(fields: [studyId], references: [id], onDelete: Cascade)
   author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
 

@@ -3,6 +3,7 @@ import express from "express"; // Express 프레임워크
 import cors from "cors"; // 교차 리소스 공유 허용 설정
 import helmet from "helmet"; // 보안을 위해 HTTP 헤더 설정
 import cookieParser from "cookie-parser"; // 클라이언트의 쿠키를 req.cookies로 파싱
+import prisma from "./prisma/client.js"; // Prisma Client
 
 // Express 애플리케이션 객체 생성
 const app = express();
@@ -24,6 +25,16 @@ app.get("/health", (req, res) => {
     result: "success",
     message: "공부의 숲 백엔드 잘 돌아갑니다~~!",
   });
+});
+
+// db 연결 테스트
+app.get("/db-check", async (req, res, next) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ result: "success", message: "DB 연결 성공!" });
+  } catch (error) {
+    next(error);
+  }
 });
 
 // 공통 에러 핸들러 미들웨어
