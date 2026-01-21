@@ -4,6 +4,8 @@ import cors from "cors"; // 교차 리소스 공유 허용 설정
 import helmet from "helmet"; // 보안을 위해 HTTP 헤더 설정
 import cookieParser from "cookie-parser"; // 클라이언트의 쿠키를 req.cookies로 파싱
 import prisma from "./prisma/client.js"; // Prisma Client
+import apiRouter from "./routes/index.js"; // 라우터 객체
+import { sendFail } from "./utils/response.js"; // API 실패 응답 유틸
 
 // Express 애플리케이션 객체 생성
 const app = express();
@@ -23,7 +25,7 @@ app.use(cookieParser()); // 쿠키 데이터 처리
 app.get("/health", (req, res) => {
   res.json({
     result: "success",
-    message: "공부의 숲 백엔드 잘 돌아갑니다~~!",
+    message: "공부의 숲 백엔드 잘 돌아갑니다~~!🌳",
   });
 });
 
@@ -37,12 +39,23 @@ app.get("/db-check", async (req, res, next) => {
   }
 });
 
+// 📍 API Prefix 라우팅
+app.use("/api", apiRouter);
+
+// 404 처리
+app.use((req, res) => {
+  return sendFail(res, {
+    statusCode: 400,
+    message: "요청하신 API 경로를 찾을 수 없습니다:(",
+  });
+});
+
 // 공통 에러 핸들러 미들웨어
 app.use((error, req, res, _next) => {
   console.error(error); // 서버 콘솔에 에러 기록
 
-  res.status(500).send({
-    result: "fail",
+  return sendFail(res, {
+    statusCode: 500,
     message: "서버 내부 오류가 발생했습니다:(",
     data: null,
   });
