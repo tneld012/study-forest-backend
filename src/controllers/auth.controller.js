@@ -2,10 +2,7 @@ import prisma from "../prisma/client.js"; // Prisma Client 불러오기
 import bcrypt from "bcrypt"; // Node.js 애플리케이션에서 bcrypt 라이브러리를 가져오기(비밀번호 암호화용 라이브러리)
 import { sendSuccess, sendFail } from "../utils/response.js"; // API 성공·실패 응답 유틸
 import { signAccessToken } from "../utils/jwt.js"; // 액세스 토큰 생성 유틸
-import {
-  getAccessTokenCookieOptions,
-  getCookieName,
-} from "../utils/cookies.js"; // 쿠키 옵션 유틸
+import { getAccessTokenCookieOptions, getCookieName } from "../utils/cookies.js"; // 쿠키 옵션 유틸
 
 // ⚙️ bcrypt 암호화 강도 설정
 const BCRYPT_SALT_ROUNDS = 10;

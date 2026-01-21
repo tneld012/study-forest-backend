@@ -26,6 +26,7 @@ export default function requireAuth(req, res, next) {
 
     return next();
   } catch (error) {
+    console.error(error);
     return sendFail(res, {
       statusCode: 401,
       message: "인증 토큰이 유효하지 않습니다:( 다시 로그인해 주세요!",

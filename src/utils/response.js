@@ -10,10 +10,7 @@ export function sendSuccess(
   });
 }
 
-export function sendFail(
-  res,
-  { message = "fail", data = null, statusCode = 400 } = {}
-) {
+export function sendFail(res, { message = "fail", data = null, statusCode = 400 } = {}) {
   return res.status(statusCode).json({
     result: "fail",
     message,
