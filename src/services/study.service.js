@@ -2,7 +2,7 @@ import prisma from "../prisma/client.js";
 
 // 📘 스터디 목록 조회 (검색 + 정렬 + 페이지네이션)
 export async function getStudyList({ page = 1, pageSize = 6, keyword, sort = "recent" }) {
-  // 1. 검색 whrer 조건
+  // 1. 검색 where 조건
   const where = {
     isPublic: true, // 공개 스터디만!
   };
@@ -94,5 +94,70 @@ export async function getStudyList({ page = 1, pageSize = 6, keyword, sort = "re
       totalCount,
       hasNextPage: page * pageSize < totalCount,
     },
+  };
+}
+
+// 📘 스터디 상세 조회
+export async function getStudyDetailById(studyId) {
+  // 1. DB 데이터 조회
+  const study = await prisma.study.findUnique({
+    where: { id: studyId },
+    select: {
+      id: true,
+      name: true,
+      introduce: true,
+      backgroundKey: true,
+      createdAt: true,
+
+      owner: {
+        select: {
+          id: true,
+          nickname: true,
+        },
+      },
+
+      pointLogs: {
+        select: { delta: true },
+      },
+
+      studyEmojiReactions: {
+        select: {
+          emoji: {
+            select: { emojiUnifiedCode: true },
+          },
+        },
+      },
+    },
+  });
+
+  // 2. 해당 스터디가 없는 경우 처리
+  if (!study) return null;
+
+  // 3. 포인트 합산 + 이모지 Top 3 집계
+  const totalPoints = study.pointLogs.reduce((sum, log) => sum + log.delta, 0);
+
+  const emojiCountMap = {};
+  for (const reaction of study.studyEmojiReactions) {
+    const code = reaction.emojiUnifiedCode;
+    emojiCountMap[code] = (emojiCountMap[code] || 0) + 1;
+  }
+
+  const topEmojis = Object.entries(emojiCountMap)
+    .map(([emojiUnifiedCode, count]) => ({ emojiUnifiedCode, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+
+  // 4. 프론트에 넘길 데이터
+  return {
+    studyId: study.id,
+    name: study.name,
+    introduce: study.introduce,
+    backgroundKey: study.backgroundKey,
+    totalPoints,
+    owner: {
+      userId: study.owner.id,
+      nickname: study.owner.nickname,
+    },
+    topEmojis,
   };
 }
