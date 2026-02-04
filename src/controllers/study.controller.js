@@ -1,6 +1,85 @@
 import * as studyService from "../services/study.service.js";
 import { sendSuccess, sendFail } from "../utils/response.js"; // API 성공·실패 응답 유틸
 
+// 🖼️ 배경 이미지 목록
+const ALLOWED_BACKGROUND_KEYS = [
+  "green",
+  "yellow",
+  "blue",
+  "pink",
+  "workspace_1",
+  "workspace_2",
+  "pattern",
+  "leaf",
+];
+
+// 🔬 길이 유효성 검사 유틸 함수
+function isValidStringLength(value, min, max) {
+  if (typeof value !== "string") return false;
+  const length = value.trim().length;
+  return length >= min && length <= max;
+}
+
+// 📘 스터디 생성 (POST /api/studies)
+export async function createStudy(req, res, next) {
+  try {
+    const userId = req.user?.userId;
+    const { name, introduce, backgroundKey, isPublic } = req.body;
+
+    // 1. 필수값 검사
+    if (!name || !introduce || !backgroundKey) {
+      return sendFail(res, {
+        statusCode: 400,
+        message: "스터디 이름, 소개, 배경 선택은 필수입니다!",
+      });
+    }
+
+    // 2. 길이 규칙
+    if (!isValidStringLength(name, 2, 30)) {
+      return sendFail(res, {
+        statusCode: 400,
+        message: "스터디 이름은 2 ~ 30글자 사이여야 합니다!",
+      });
+    }
+
+    if (!isValidStringLength(introduce, 2, 200)) {
+      return sendFail(res, {
+        statusCode: 400,
+        message: "소개는 2 ~ 200글자 사이여야 합니다!",
+      });
+    }
+
+    // 3. backgroundKey 허용값 체크
+    if (!ALLOWED_BACKGROUND_KEYS.includes(backgroundKey)) {
+      return sendFail(res, {
+        statusCode: 400,
+        message: "backgroundKey 값이 올바르지 않습니다:(",
+      });
+    }
+
+    // 4. isPublic 기본값 처리
+    const safeIsPublic = typeof isPublic === "boolean" ? isPublic : true;
+
+    // 5. service 호출 → DB에 스터디 생성 + OWNER 자동 가입
+    const createdStudy = await studyService.createStudy({
+      ownerId: userId,
+      name: name.trim(),
+      introduce: introduce.trim(),
+      backgroundKey,
+      isPublic: safeIsPublic,
+    });
+
+    // 6. 응답 반환
+    return sendSuccess(res, {
+      statusCode: 201,
+      message: "스터디가 성공적으로 생성되었습니다!",
+      data: createdStudy,
+    });
+  } catch (error) {
+    return next(error); // 예상하지 못한 에러는 미들웨어에 넘기기!
+  }
+}
+
 // 📘 스터디 목록 조회 (GET /api/studies)
 export async function getPublicStudyList(req, res, next) {
   try {

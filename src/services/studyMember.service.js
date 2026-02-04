@@ -8,7 +8,7 @@ export async function findStudyById(studyId) {
   });
 }
 
-// 🎫 My 멤버십 조회 (사용자가 해당 스터디에 가입되어 있는지 확인)
+// 🎫 My 멤버십 조회 (사용자가 해당 스터디에 참여되어 있는지 확인)
 export async function findMyMembership({ studyId, userId }) {
   // 복합 키(studyId + userId)를 사용하여 멤버 정보 조회
   return prisma.studyMember.findUnique({

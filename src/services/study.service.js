@@ -1,5 +1,53 @@
 import prisma from "../prisma/client.js";
 
+// 📘 스터디 생성 (스터디 생성 + OWNER 멤버십 자동 가입)
+export async function createStudy({ ownerId, name, introduce, backgroundKey, isPublic }) {
+  // 1. 트랜잭션 실행 (스터디 생성 + OWNER 멤버십 자동 가입)
+  const result = await prisma.$transaction(async (transactionClient) => {
+    // 1-1. DB에 STUDY 행 저장
+    const study = await transactionClient.study.create({
+      data: {
+        ownerId,
+        name,
+        introduce,
+        backgroundKey,
+        isPublic,
+      },
+      select: {
+        id: true,
+        ownerId: true,
+        name: true,
+        introduce: true,
+        backgroundKey: true,
+        isPublic: true,
+        createdAt: true,
+      },
+    });
+
+    // 1-2. STUDYMEMBER 테이블에 OWNER 역할로 자동 가입
+    await transactionClient.studyMember.create({
+      data: {
+        studyId: study.id,
+        userId: ownerId,
+        role: "OWNER",
+      },
+    });
+
+    return study;
+  });
+
+  // 2. 프론트에 넘길 데이터
+  return {
+    studyId: result.id,
+    ownerId: result.ownerId,
+    name: result.name,
+    introduce: result.introduce,
+    backgroundKey: result.backgroundKey,
+    isPublic: result.isPublic,
+    createdAt: result.createdAt,
+  };
+}
+
 // 📘 스터디 목록 조회 (검색 + 정렬 + 페이지네이션)
 export async function getStudyList({ page = 1, pageSize = 6, keyword, sort = "recent" }) {
   // 1. 검색 where 조건
@@ -138,7 +186,7 @@ export async function getStudyDetailById(studyId) {
 
   const emojiCountMap = {};
   for (const reaction of study.studyEmojiReactions) {
-    const code = reaction.emojiUnifiedCode;
+    const code = reaction.emoji.emojiUnifiedCode;
     emojiCountMap[code] = (emojiCountMap[code] || 0) + 1;
   }
 
