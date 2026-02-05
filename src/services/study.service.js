@@ -209,3 +209,44 @@ export async function getStudyDetailById(studyId) {
     topEmojis,
   };
 }
+
+// 📘 스터디 수정
+export async function updateStudy(studyId, updateData) {
+  try {
+    // 1. DB 데이터 수정
+    const updated = await prisma.study.update({
+      where: { id: studyId },
+      data: {
+        ...(updateData.name !== undefined && { name: updateData.name }),
+        ...(updateData.introduce !== undefined && { introduce: updateData.introduce }),
+        ...(updateData.backgroundKey !== undefined && {
+          backgroundKey: updateData.backgroundKey,
+        }),
+        ...(updateData.isPublic !== undefined && { isPublic: updateData.isPublic }),
+      },
+      select: {
+        id: true,
+        name: true,
+        introduce: true,
+        backgroundKey: true,
+        isPublic: true,
+        updatedAt: true,
+      },
+    });
+
+    // 2. 프론트에 넘길 데이터
+    return {
+      studyId: updated.id,
+      name: updated.name,
+      introduce: updated.introduce,
+      backgroundKey: updated.backgroundKey,
+      isPublic: updated.isPublic,
+      updatedAt: updated.updatedAt,
+    };
+  } catch (error) {
+    if (error && error.code === "P2025") {
+      return null;
+    }
+    throw error;
+  }
+}

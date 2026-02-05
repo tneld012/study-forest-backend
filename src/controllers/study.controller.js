@@ -159,6 +159,80 @@ export async function getPublicStudyDetail(req, res, next) {
       data: study,
     });
   } catch (error) {
-    next(error);
+    next(error); // 예상하지 못한 에러는 미들웨어에 넘기기!
+  }
+}
+
+// 📘 스터디 수정 (PATCH /api/studies/:studyId)
+export async function updateStudy(req, res, next) {
+  try {
+    const { studyId } = req.params;
+    const { name, introduce, backgroundKey, isPublic } = req.body;
+
+    // 1. 수정할 값이 하나도 없는 경우
+    if (
+      name === undefined &&
+      introduce === undefined &&
+      backgroundKey === undefined &&
+      isPublic === undefined
+    ) {
+      return sendFail(res, {
+        statusCode: 400,
+        message: "수정할 값이 최소 1개 이상 필요합니다!",
+      });
+    }
+
+    // 2. 개별 필드 유효성 검사
+    if (name !== undefined && !isValidStringLength(name, 2, 30)) {
+      return sendFail(res, {
+        statusCode: 400,
+        message: "스터디 이름은 2 ~ 30글자 사이여야 합니다!",
+      });
+    }
+
+    if (introduce !== undefined && !isValidStringLength(introduce, 2, 200)) {
+      return sendFail(res, {
+        statusCode: 400,
+        message: "소개는 2 ~ 200글자 사이여야 합니다!",
+      });
+    }
+
+    if (backgroundKey !== undefined && !ALLOWED_BACKGROUND_KEYS.includes(backgroundKey)) {
+      return sendFail(res, {
+        statusCode: 400,
+        message: "backgroundKey 값이 올바르지 않습니다:(",
+      });
+    }
+
+    if (isPublic !== undefined && typeof isPublic !== "boolean") {
+      return sendFail(res, {
+        statusCode: 400,
+        message: "isPublic은 boolean(true/false) 값이어야 합니다!",
+      });
+    }
+
+    // 3. service 호출 → DB 수정 처리
+    const updatedStudy = await studyService.updateStudy(studyId, {
+      name: name !== undefined ? name.trim() : undefined,
+      introduce: introduce !== undefined ? introduce.trim() : undefined,
+      backgroundKey,
+      isPublic,
+    });
+
+    // 3-1. 스터디가 존재하지 않는 경우 (Service에서 null 반환 시) 404 반환 (P2025)
+    if (!updatedStudy) {
+      return sendFail(res, {
+        statusCode: 404,
+        message: "해당 스터디를 찾을 수 없습니다:(",
+      });
+    }
+
+    // 4. 응답 반환
+    return sendSuccess(res, {
+      message: "스터디 정보가 성공적으로 수정되었습니다!",
+      data: updatedStudy,
+    });
+  } catch (error) {
+    next(error); // 예상하지 못한 에러는 미들웨어에 넘기기!
   }
 }
