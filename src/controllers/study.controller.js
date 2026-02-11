@@ -76,7 +76,7 @@ export async function createStudy(req, res, next) {
       data: createdStudy,
     });
   } catch (error) {
-    return next(error); // 예상하지 못한 에러는 미들웨어에 넘기기!
+    next(error); // 예상하지 못한 에러는 미들웨어에 넘기기!
   }
 }
 
@@ -121,39 +121,23 @@ export async function getPublicStudyList(req, res, next) {
   }
 }
 
-// ✔️ UUID 형식 검사
-function isValidUuid(value) {
-  if (typeof value !== "string") return false;
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i; // UUID 표준 형식(8-4-4-4-12자리)을 정의한 정규 표현식
-  return uuidRegex.test(value); // 정규식 패턴과 일치하는지 확인
-}
-
 // 📘 스터디 상세 조회 (GET /api/studies/:studyId)
 export async function getPublicStudyDetail(req, res, next) {
   try {
     const { studyId } = req.params;
 
-    // 1. studyId 유효성 검사
-    if (!isValidUuid(studyId)) {
-      return sendFail(res, {
-        statusCode: 400,
-        message: "studyId 형식이 올바르지 않습니다:( (UUID 형식이어야 합니다!)",
-      });
-    }
-
-    // 2. service 호출 → studyId로 DB 조회
+    // 1. service 호출 → studyId로 DB 조회
     const study = await studyService.getStudyDetailById(studyId);
 
-    // 3. 스터디 존재하지 않으면 404 반환
-    if (!study) {
+    // 2. 유효성 검사
+    if (!study || study.isPublic !== true) {
       return sendFail(res, {
         statusCode: 404,
         message: "해당 스터디를 찾을 수 없습니다:(",
       });
     }
 
-    // 4. 응답 반환
+    // 3. 응답 반환
     return sendSuccess(res, {
       message: "스터디 상세 정보를 성공적으로 조회했습니다!",
       data: study,
@@ -231,6 +215,32 @@ export async function updateStudy(req, res, next) {
     return sendSuccess(res, {
       message: "스터디 정보가 성공적으로 수정되었습니다!",
       data: updatedStudy,
+    });
+  } catch (error) {
+    next(error); // 예상하지 못한 에러는 미들웨어에 넘기기!
+  }
+}
+
+// 📘 스터디 삭제 (DELETE /api/studies/:studyId)
+export async function deleteStudy(req, res, next) {
+  try {
+    const { studyId } = req.params;
+
+    // 1. service 호출 → DB 수정 처리 (soft delete)
+    const deleted = await studyService.deleteStudy(studyId);
+
+    // 1-1. 스터디가 존재하지 않는 경우 (Service에서 null 반환 시) 404 반환 (P2025)
+    if (!deleted) {
+      return sendFail(res, {
+        statusCode: 404,
+        message: "해당 스터디를 찾을 수 없습니다:(",
+      });
+    }
+
+    // 2. 응답 반환
+    return sendSuccess(res, {
+      message: "스터디가 성공적으로 삭제되었습니다! (soft delete)",
+      data: deleted,
     });
   } catch (error) {
     next(error); // 예상하지 못한 에러는 미들웨어에 넘기기!

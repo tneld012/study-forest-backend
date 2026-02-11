@@ -48,11 +48,12 @@ export async function createStudy({ ownerId, name, introduce, backgroundKey, isP
   };
 }
 
-// 📘 스터디 목록 조회 (검색 + 정렬 + 페이지네이션)
+// 📘 스터디 목록 조회 (검색 + 정렬 + 페이지네이션) - 공개 스터디만
 export async function getStudyList({ page = 1, pageSize = 6, keyword, sort = "recent" }) {
   // 1. 검색 where 조건
   const where = {
-    isPublic: true, // 공개 스터디만!
+    deletedAt: null,
+    isPublic: true,
   };
 
   const word = typeof keyword === "string" ? keyword.normalize().trim() : ""; // normalize() 메서드는 서로 다른 방식으로 인코딩된 문자열을 하나의 통일된 형식으로 변환하여 문자열 비교나 검색 시 오류를 방지하는 역할
@@ -145,16 +146,20 @@ export async function getStudyList({ page = 1, pageSize = 6, keyword, sort = "re
   };
 }
 
-// 📘 스터디 상세 조회
+// 📘 스터디 상세 조회 - 공개/비공개 여부틑 라우터/미들웨어에서 분기
 export async function getStudyDetailById(studyId) {
   // 1. DB 데이터 조회
-  const study = await prisma.study.findUnique({
-    where: { id: studyId },
+  const study = await prisma.study.findFirst({
+    where: {
+      id: studyId,
+      deletedAt: null, // soft delete
+    },
     select: {
       id: true,
       name: true,
       introduce: true,
       backgroundKey: true,
+      isPublic: true, // private/public 컨트롤러에서 필요할 수 있어서 포함!
       createdAt: true,
 
       owner: {
@@ -201,52 +206,95 @@ export async function getStudyDetailById(studyId) {
     name: study.name,
     introduce: study.introduce,
     backgroundKey: study.backgroundKey,
+    isPublic: study.isPublic,
     totalPoints,
     owner: {
       userId: study.owner.id,
       nickname: study.owner.nickname,
     },
     topEmojis,
+    createdAt: study.createdAt,
   };
 }
 
 // 📘 스터디 수정
 export async function updateStudy(studyId, updateData) {
-  try {
-    // 1. DB 데이터 수정
-    const updated = await prisma.study.update({
-      where: { id: studyId },
-      data: {
-        ...(updateData.name !== undefined && { name: updateData.name }),
-        ...(updateData.introduce !== undefined && { introduce: updateData.introduce }),
-        ...(updateData.backgroundKey !== undefined && {
-          backgroundKey: updateData.backgroundKey,
-        }),
-        ...(updateData.isPublic !== undefined && { isPublic: updateData.isPublic }),
-      },
-      select: {
-        id: true,
-        name: true,
-        introduce: true,
-        backgroundKey: true,
-        isPublic: true,
-        updatedAt: true,
-      },
-    });
+  // 1. DB 데이터 수정
+  const result = await prisma.study.updateMany({
+    where: {
+      id: studyId,
+      deletedAt: null,
+    },
+    data: {
+      ...(updateData.name !== undefined && { name: updateData.name }),
+      ...(updateData.introduce !== undefined && { introduce: updateData.introduce }),
+      ...(updateData.backgroundKey !== undefined && {
+        backgroundKey: updateData.backgroundKey,
+      }),
+      ...(updateData.isPublic !== undefined && { isPublic: updateData.isPublic }),
+    },
+  });
 
-    // 2. 프론트에 넘길 데이터
-    return {
-      studyId: updated.id,
-      name: updated.name,
-      introduce: updated.introduce,
-      backgroundKey: updated.backgroundKey,
-      isPublic: updated.isPublic,
-      updatedAt: updated.updatedAt,
-    };
-  } catch (error) {
-    if (error && error.code === "P2025") {
-      return null;
-    }
-    throw error;
-  }
+  // 1-1. 수정된 행이 0개면(이미 삭제된 상태), null 반환
+  if (result.count === 0) return null;
+
+  // 1-2. 수정 성공했으면 DB에서 최종 값 조회해서 반환
+  const updated = await prisma.study.findFirst({
+    where: {
+      id: studyId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      name: true,
+      introduce: true,
+      backgroundKey: true,
+      isPublic: true,
+      updatedAt: true,
+    },
+  });
+
+  if (!updated) return null;
+
+  // 2. 프론트에 넘길 데이터
+  return {
+    studyId: updated.id,
+    name: updated.name,
+    introduce: updated.introduce,
+    backgroundKey: updated.backgroundKey,
+    isPublic: updated.isPublic,
+    updatedAt: updated.updatedAt,
+  };
+}
+
+// 📘 스터디 삭제(soft delete)
+export async function deleteStudy(studyId) {
+  const now = new Date();
+
+  // 1. DB 데이터 수정 (실제 삭제 대신 deletedAt에 현재 시간 기록, soft delete)
+  const result = await prisma.study.updateMany({
+    where: {
+      id: studyId,
+      deletedAt: null,
+    },
+    data: { deletedAt: now },
+  });
+
+  // 2-1. 수정된 행이 0개면, null 반환
+  if (result.count === 0) return null;
+
+  // 2-2. 삭제 성공했으면 DB에서 최종 값 조회해서 반환
+  const deleted = await prisma.study.findUnique({
+    where: { id: studyId },
+    select: {
+      id: true,
+      deletedAt: true,
+    },
+  });
+
+  // 3. 프론트에 넘길 데이터
+  return {
+    studyId: deleted.id,
+    deletedAt: deleted.deletedAt,
+  };
 }

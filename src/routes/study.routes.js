@@ -7,6 +7,7 @@ import {
   getPublicStudyList,
   getPublicStudyDetail,
   updateStudy,
+  deleteStudy,
 } from "../controllers/study.controller.js";
 
 const router = express.Router(); // 라우터 객체 생성
@@ -17,8 +18,12 @@ router.post("/", requireAuth, createStudy);
 // 📘 공개 스터디 목록 조회 - GET /api/studies 요청을 받아 getPublicStudyList 컨트롤러와 연결
 router.get("/", getPublicStudyList);
 
-// 📘 공개 스터디 상세 조회 - GET /api/studies/:studyId 요청을 받아 getPublicStudyDetail 컨트롤러와 연결
-router.get("/:studyId", getPublicStudyDetail);
+// 📘 공개 스터디 상세 조회 - GET /api/studies/:studyId 요청을 받아 존재 여부 및 공개 상태(requireStudyExists) 확인 후 getPublicStudyDetail 컨트롤러와 연결
+router.get(
+  "/:studyId",
+  requireStudyExists("studyId", { onlyPublic: true }),
+  getPublicStudyDetail
+);
 
 // 📘 스터디 수정 - PATCH /api/studies/:studyId 요청을 받아 로그인(requireAuth), 존재 여부(requireStudyExists), 방장 권한(requireStudyOwner) 확인 후 updateStudy 컨트롤러와 연결
 router.patch(
@@ -27,6 +32,15 @@ router.patch(
   requireStudyExists("studyId"),
   requireStudyOwner("studyId"),
   updateStudy
+);
+
+// 📘 스터디 삭제 - DELETE /api/studies/:studyId 요청을 받아 로그인(requireAuth), 존재 여부(requireStudyExists), 방장 권한(requireStudyOwner) 확인 후 deleteStudy 컨트롤러와 연결
+router.delete(
+  "/:studyId",
+  requireAuth,
+  requireStudyExists("studyId"),
+  requireStudyOwner("studyId"),
+  deleteStudy
 );
 
 export default router;

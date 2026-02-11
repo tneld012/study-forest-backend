@@ -9,8 +9,11 @@ function isValidUuid(value) {
   return uuidRegex.test(value); // 정규식 패턴과 일치하는지 확인
 }
 
-// 🛡️ 스터디 존재 여부 확인 미들웨어
-export default function requireStudyExists(getStudyId) {
+// 🛡️ 스터디 존재 + soft delete 여부 확인 미들웨어
+export default function requireStudyExists(getStudyId, options = {}) {
+  // options에서 onlyPublic 여부를 가져옴 (기본값 false)
+  const { onlyPublic = false } = options;
+
   return async function (req, res, next) {
     try {
       const studyId =
@@ -32,22 +35,26 @@ export default function requireStudyExists(getStudyId) {
         });
       }
 
-      // 3. DB에 스터디 존재 여부 확인
-      const study = await prisma.study.findUnique({
-        where: { id: studyId },
+      // 3. DB 조회를 위한 기본 where 조건 설정 (ID 일치 + 삭제 안 됨)
+      const where = { id: studyId, deletedAt: null };
+
+      // 2-1. onlyPublic 옵션이 true일 경우, 공개 스터디만 조회하도록 조건 추가
+      if (onlyPublic) {
+        where.isPublic = true;
+      }
+
+      // 4. 삭제 되지 않은 스터디만 존재하는 스터디로 인정
+      const study = await prisma.study.findFirst({
+        where,
         select: {
           id: true,
           ownerId: true,
-          name: true,
-          introduce: true,
-          backgroundKey: true,
           isPublic: true,
-          createdAt: true,
-          updatedAt: true,
         },
       });
 
-      // 3-1. 스터디가 존재하지 않을 경우 404 반환
+      // 4-1. 스터디가 존재하지 않을 경우 404 반환
+      // (비공개 스터디인데 onlyPublic 옵션으로 조회했을 때도 여기서 걸러짐)
       if (!study) {
         return sendFail(res, {
           statusCode: 404,
@@ -55,7 +62,7 @@ export default function requireStudyExists(getStudyId) {
         });
       }
 
-      // 4. 재사용을 위해 보관
+      // 5. 재사용을 위해 보관
       req.study = study;
 
       return next();
